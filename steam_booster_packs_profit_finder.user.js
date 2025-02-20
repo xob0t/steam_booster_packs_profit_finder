@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Booster Packs Profit Finder
 // @description  Trade your gems for card sets from your game collection at a good price
-// @version      0.1
+// @version      0.1.1
 // @auhor        16ROCK, xob0t
 // @namespace    https://github.com/xob0t/steam_booster_packs_profit_finder
 // @match        https://steamcommunity.com/tradingcards/boostercreator*
@@ -295,26 +295,10 @@ GM_addStyle(`
 
   let totalItems = 0;
   const language = unsafeWindow.g_strLanguage;
-  const country = language === "russian" ? "RU" : "EN";
   const steamID = unsafeWindow.g_steamID;
 
   const translations = {
-    RU: {
-      NAME: "НАЗВАНИЕ",
-      PRICE: "ЦЕНА",
-      GEMS: "ГЕМЫ",
-      REQUEST: "ЗАПРОС",
-      VIEW_MARKET: "Найти на Торговой площадке",
-      STARTING_AT: "От ",
-      NO_LISTINGS: "Сейчас этот предмет никто не продаёт.",
-      SOLD_LAST_24H: "за последние 24 часа: %1$s",
-      VOLUME: "Продано ",
-      CREATE_SET: "Вы сможете создать набор",
-      NEED_MORE_GEMS: "Нужно еще %1$s самоцветов",
-      ITEM_UNMARKETABLE: "Данный предмет больше нельзя купить или продать на торговой площадке Steam.",
-      ITEM_NOT_EXIST: "Предмет не существует на Торговой площадке.",
-    },
-    EN: {
+    english: {
       NAME: "NAME",
       PRICE: "PRICE",
       GEMS: "GEMS",
@@ -329,9 +313,24 @@ GM_addStyle(`
       ITEM_UNMARKETABLE: "This item can no longer be bought or sold on the Community Market.",
       ITEM_NOT_EXIST: "The item does not exist on the market.",
     },
+    russian: {
+      NAME: "НАЗВАНИЕ",
+      PRICE: "ЦЕНА",
+      GEMS: "ГЕМЫ",
+      REQUEST: "ЗАПРОС",
+      VIEW_MARKET: "Найти на Торговой площадке",
+      STARTING_AT: "От ",
+      NO_LISTINGS: "Сейчас этот предмет никто не продаёт.",
+      SOLD_LAST_24H: "за последние 24 часа: %1$s",
+      VOLUME: "Продано ",
+      CREATE_SET: "Вы сможете создать набор",
+      NEED_MORE_GEMS: "Нужно еще %1$s самоцветов",
+      ITEM_UNMARKETABLE: "Данный предмет больше нельзя купить или продать на торговой площадке Steam.",
+      ITEM_NOT_EXIST: "Предмет не существует на Торговой площадке.",
+    },
   };
 
-  const currentTranslation = translations[country];
+  const currentTranslation = translations[language] || translations["english"];
 
   const appids = {};
   let sortColumn = "name";
