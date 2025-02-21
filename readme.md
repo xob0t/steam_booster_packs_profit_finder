@@ -1,8 +1,14 @@
 # Steam Booster Packs Profit Finder
 
-Fork of [Steam Booster Packs Profit Finder v2.1.5](https://chromewebstore.google.com/detail/steam-booster-packs-profi/knhicbficbafeombbgjfenfjfngmnann?hl=ru) by [@16ROCK](https://github.com/16ROCK)
+Fork of [Steam Booster Packs Profit Finder v2.1.5](https://chromewebstore.google.com/detail/steam-booster-packs-profi/knhicbficbafeombbgjfenfjfngmnann) by [@16ROCK](https://github.com/16ROCK)
 
 ![demo_en](assets/demo_en.png)
+
+## Colors
+
+- Green: If the item's gem value is at least 13.04% cheaper than its price.
+- Orange: If the item's gem value is less than the price but not 13.04% cheaper.
+- Red: If the item's gem value is equal to or greater than the price.
 
 ## Installation
 
