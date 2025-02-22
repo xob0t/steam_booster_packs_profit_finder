@@ -339,6 +339,12 @@ GM_addStyle(`
 
   const parsePrice = (price) => Math.round(parseFloat(price.replace(/[^0-9,\.]/g, "").replaceAll(",", ".")) * 100);
 
+  const decodeHtmlEntities = (str) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(str, "text/html");
+    return doc.documentElement.textContent;
+  };
+
   const fetchData = async (url) => {
     try {
       const response = await fetch(url, {
@@ -454,7 +460,7 @@ GM_addStyle(`
     item.price = 0;
     item.name = language === "english" ? (cache.apps[item.appid] = item.name) : cache.apps[item.appid];
 
-    item.market_hash_name = `${item.appid}-${decodeURIComponent(item.name).replaceAll("/", "-")} Booster Pack`;
+    item.market_hash_name = `${item.appid}-${decodeHtmlEntities(item.name).replaceAll("/", "-")} Booster Pack`;
     delete item.series;
 
     item.div = document.createElement("div");
