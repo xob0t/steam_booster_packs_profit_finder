@@ -337,7 +337,7 @@ GM_addStyle(`
   let sortDirection = -1;
   let count = 0;
 
-  const parsePrice = (price) => Math.round(parseFloat(price.replace(/[^0-9,\.]/g, "").replace(/,/g, ".")) * 100);
+  const parsePrice = (price) => Math.round(parseFloat(price.replace(/[^0-9,\.]/g, "").replaceAll(",", ".")) * 100);
 
   const fetchData = async (url) => {
     try {
@@ -417,7 +417,7 @@ GM_addStyle(`
     if (!currency || boosterOption.querySelector(".priceoverview")) return;
 
     const data = await fetchData(
-      `https://steamcommunity.com/market/priceoverview/?country=${country}&currency=${currency}&appid=753&market_hash_name=${item.market_hash_name}`
+      `https://steamcommunity.com/market/priceoverview/?&currency=${currency}&appid=753&market_hash_name=${item.market_hash_name}`
     );
     const listing_data = JSON.parse(data);
     if (listing_data?.success) {
@@ -427,9 +427,7 @@ GM_addStyle(`
       } else {
         priceInfo += `${currentTranslation.NO_LISTINGS}<br>`;
       }
-      if (listing_data.volume) {
-        priceInfo += `${currentTranslation.VOLUME}${currentTranslation.SOLD_LAST_24H.replace("%1$s", listing_data.volume)}<br>`;
-      }
+      priceInfo += `${currentTranslation.VOLUME}${currentTranslation.SOLD_LAST_24H.replace("%1$s", listing_data.volume || 0)}<br>`;
       boosterOption
         .querySelector(".booster_goo_cost")
         .insertAdjacentHTML("beforebegin", `<div class="priceoverview" style="min-height: 3em; margin-left: 1em;">${priceInfo}</div>`);
@@ -455,10 +453,8 @@ GM_addStyle(`
     item.gems = Number(item.price);
     item.price = 0;
     item.name = language === "english" ? (currentStorage.apps[item.appid] = item.name) : currentStorage.apps[item.appid];
-    item.market_hash_name = `${item.appid}-${item.name
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/\//g, "-")} Booster Pack`;
+
+    item.market_hash_name = `${item.appid}-${decodeURIComponent(item.name).replaceAll("/", "-")} Booster Pack`;
     delete item.series;
 
     item.div = document.createElement("div");
@@ -611,11 +607,11 @@ GM_addStyle(`
 
     try {
       assets = JSON.parse(result.match(/var\s+g_rgAssets\s+=\s+([^;]+)/)[1])[753][6];
+      processAssets(assets);
     } catch (error) {
       console.error("Error parsing assets:", error);
     }
 
-    processAssets(assets);
     processMultiItems(multi);
 
     if (multi.length > 1) {
@@ -770,8 +766,7 @@ GM_addStyle(`
       items.filter((item) => "request" in item).forEach(setItemColor);
     }
 
-    document.querySelector(".fastprofit .line").style.width = `${Math.ceil((++count * 100) / totalItems)}%`;
-    window.requestAnimationFrame(() => sortItems(sortColumn, sortColumn === "profit" || sortColumn === "fastprofit" ? -1 : sortDirection));
+    updateProgress();
 
     await saveStorage();
     await multibuy(urls, index + 1);
