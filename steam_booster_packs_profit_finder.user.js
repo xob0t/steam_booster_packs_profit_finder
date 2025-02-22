@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Booster Packs Profit Finder
 // @description  Trade your gems for card sets from your game collection at a good price
-// @version      0.1.1
+// @version      0.1.2
 // @auhor        16ROCK, xob0t
 // @namespace    https://github.com/xob0t/steam_booster_packs_profit_finder
 // @match        https://steamcommunity.com/tradingcards/boostercreator*
