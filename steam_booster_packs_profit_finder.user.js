@@ -270,9 +270,8 @@ GM_addStyle(`
 (async function () {
   "use strict";
 
-  const storage = await GM_getValue("storage", {});
   const version = "0.1";
-  const setStorage = {
+  const initialCache = {
     apps: {},
     available: {},
     currencies: {},
@@ -283,11 +282,14 @@ GM_addStyle(`
     version,
   };
 
-  const currentStorage = version === storage.version ? { ...setStorage, ...storage } : setStorage;
+  let cache = await GM_getValue("cache", initialCache);
+  if (cache.version !== version) {
+    cache = { ...initialCache, ...cache, version, updatedAt: 0 }; // Migrate cache if version mismatch
+  }
   let appid = document.querySelector("#booster_game_selector").value;
 
-  const saveStorage = async () => {
-    await GM_setValue("storage", currentStorage);
+  const saveCache = async () => {
+    await GM_setValue("cache", cache);
   };
 
   // Create a deep copy
@@ -411,7 +413,7 @@ GM_addStyle(`
         );
     }
 
-    const currency = currentStorage.currencies[steamID] || 0;
+    const currency = cache.currencies[steamID] || 0;
     if (!currency || boosterOption.querySelector(".priceoverview")) return;
 
     const data = await fetchData(
@@ -433,8 +435,8 @@ GM_addStyle(`
   };
 
   const setItemColor = (item) => {
-    const currency = currentStorage.currencies[steamID];
-    const gemPrice = currentStorage.gems[currency].price;
+    const currency = cache.currencies[steamID];
+    const gemPrice = cache.gems[currency].price;
     const priceClass =
       gemPrice * item.gems < item.price - item.price * 0.13043478260869565 ? "green" : gemPrice * item.gems < item.price ? "orange" : "red";
     const requestClass =
@@ -443,14 +445,14 @@ GM_addStyle(`
   };
 
   const createItemDiv = (item) => {
-    const currency = currentStorage.currencies[steamID] || 0;
+    const currency = cache.currencies[steamID] || 0;
     const date = Date.now();
 
     const key = `${currency}_${item.appid}`;
     appids[item.appid] = item;
     item.gems = Number(item.price);
     item.price = 0;
-    item.name = language === "english" ? (currentStorage.apps[item.appid] = item.name) : currentStorage.apps[item.appid];
+    item.name = language === "english" ? (cache.apps[item.appid] = item.name) : cache.apps[item.appid];
 
     item.market_hash_name = `${item.appid}-${decodeURIComponent(item.name).replaceAll("/", "-")} Booster Pack`;
     delete item.series;
@@ -462,26 +464,26 @@ GM_addStyle(`
     }
     item.div.dataset.appid = item.appid;
 
-    if (item.appid in currentStorage.not_exist) {
-      item.not_exist = currentStorage.not_exist[item.appid];
+    if (item.appid in cache.not_exist) {
+      item.not_exist = cache.not_exist[item.appid];
       if (item.not_exist) {
         item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
       }
     }
 
-    if (item.appid in currentStorage.available) {
-      item.available = currentStorage.available[item.appid];
+    if (item.appid in cache.available) {
+      item.available = cache.available[item.appid];
     }
 
-    if (item.appid in currentStorage.marketable) {
-      item.marketable = currentStorage.marketable[item.appid];
+    if (item.appid in cache.marketable) {
+      item.marketable = cache.marketable[item.appid];
       if (!item.marketable) {
         item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
       }
     }
 
-    if (key in currentStorage.prices) {
-      const savedPrice = currentStorage.prices[key];
+    if (key in cache.prices) {
+      const savedPrice = cache.prices[key];
       item.date = savedPrice.date;
       if (item.marketable && date - item.date < 1800000) {
         item.price = savedPrice.price || 0;
@@ -510,9 +512,9 @@ GM_addStyle(`
   };
 
   const createItemDivs = async () => {
-    if (language === "english" || !items.some((item) => !(item.appid in currentStorage.apps))) {
+    if (language === "english" || !items.some((item) => !(item.appid in cache.apps))) {
       const appid = document.querySelector("#booster_game_selector").value;
-      const currency = currentStorage.currencies[steamID] || 0;
+      const currency = cache.currencies[steamID] || 0;
       const date = Date.now();
 
       items.forEach((item) => {
@@ -520,7 +522,7 @@ GM_addStyle(`
         items.div.append(itemDiv);
       });
 
-      await saveStorage();
+      await saveCache();
       sortItems("name", 1);
       if (appid in appids) {
         window.requestAnimationFrame(() => {
@@ -530,7 +532,7 @@ GM_addStyle(`
       }
 
       const urls = getMultiUrls();
-      const gems = currentStorage.gems[currency];
+      const gems = cache.gems[currency];
 
       if (currency && gems && date - gems.date < 900000) {
         items.filter((item) => "request" in item).forEach((item) => setItemColor(item));
@@ -545,7 +547,7 @@ GM_addStyle(`
         try {
           const matches = result.match(/CBoosterCreatorPage\.Init\(\s+([^\n]+)\,/);
           const items = JSON.parse(matches[1]);
-          items.forEach((item) => (currentStorage.apps[item.appid] = item.name));
+          items.forEach((item) => (cache.apps[item.appid] = item.name));
           await createItemDivs();
         } catch (error) {
           setTimeout(createItemDivs, 500 * 2);
@@ -611,7 +613,7 @@ GM_addStyle(`
 
   const processAssets = (assets) => {
     Object.values(assets).forEach((asset) => {
-      currentStorage.marketable[asset.market_fee_app] = asset.marketable;
+      cache.marketable[asset.market_fee_app] = asset.marketable;
     });
   };
 
@@ -620,13 +622,13 @@ GM_addStyle(`
       const appidMatch = multiItem.match(/listings\/753\/(\d*)-/);
       const appid = appidMatch && appidMatch[1];
 
-      if (!appid || !(appid in currentStorage.apps)) return;
+      if (!appid || !(appid in cache.apps)) return;
 
       const price = parsePrice(multiItem.match(/price" value="([^"]*)"/)[1]);
       const item = appids[appid];
 
-      item.marketable = currentStorage.marketable[appid];
-      item.available = currentStorage.available[appid] = /"\sdata-tooltip-text="/.test(multiItem);
+      item.marketable = cache.marketable[appid];
+      item.available = cache.available[appid] = /"\sdata-tooltip-text="/.test(multiItem);
       item.price = item.marketable && item.available ? price : 0;
       item.profit = price / item.gems;
       item.div.dataset.price = item.price ? (item.price / 100).toFixed(2) : 0;
@@ -635,8 +637,8 @@ GM_addStyle(`
 
   const processCurrency = (result) => {
     const steamIDCurrency = result.match(/"wallet_currency":(\d*),"/)[1];
-    currentStorage.currencies[steamID] = steamIDCurrency;
-    currentStorage.gems[steamIDCurrency] = {
+    cache.currencies[steamID] = steamIDCurrency;
+    cache.gems[steamIDCurrency] = {
       price: parsePrice(result.match(/price" value="([^"]*)"/)[1]),
     };
     window.requestAnimationFrame(() => updatePriceOverview(appids[appid]));
@@ -663,7 +665,7 @@ GM_addStyle(`
       urls[index] = urls[index].replace(`&items[]=${encodeURIComponent(item.market_hash_name)}`, "");
       item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
       setItemColor(item);
-      currentStorage.not_exist[appidMatch[0]] = true;
+      cache.not_exist[appidMatch[0]] = true;
     }
 
     setTimeout(() => multibuy(urls, index), 1000);
@@ -703,7 +705,7 @@ GM_addStyle(`
       if (!appidMatch) return;
 
       const appid = appidMatch[1];
-      if (!(appid in currentStorage.apps)) return;
+      if (!(appid in cache.apps)) return;
 
       const request = parsePrice(multiItem.match(/price_paid" value="([^"]*)"/)[1]);
       const item = appids[appid];
@@ -715,21 +717,20 @@ GM_addStyle(`
 
       setItemColor(item);
 
-      const key = `${currentStorage.currencies[steamID]}_${appid}`;
-      currentStorage.prices[key] = { price: item.price, request, date };
+      const key = `${cache.currencies[steamID]}_${appid}`;
+      cache.prices[key] = { price: item.price, request, date };
     });
 
     if (!index) {
-      const currency = currentStorage.currencies[steamID];
-      currentStorage.gems[currency].price =
-        (currentStorage.gems[currency].price + parsePrice(multi[1].match(/price_paid" value="([^"]*)"/)[1])) / 2000;
-      currentStorage.gems[currency].date = date;
+      const currency = cache.currencies[steamID];
+      cache.gems[currency].price = (cache.gems[currency].price + parsePrice(multi[1].match(/price_paid" value="([^"]*)"/)[1])) / 2000;
+      cache.gems[currency].date = date;
       items.filter((item) => "request" in item).forEach(setItemColor);
     }
 
     updateProgress();
 
-    await saveStorage();
+    await saveCache();
     await multibuy(urls, index + 1);
   };
 
@@ -775,5 +776,5 @@ GM_addStyle(`
 
   initializeUI();
   await createItemDivs();
-  await saveStorage();
+  await saveCache();
 })();
