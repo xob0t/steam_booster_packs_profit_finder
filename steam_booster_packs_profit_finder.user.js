@@ -422,8 +422,10 @@ GM_addStyle(`
     const currency = cache.currencies[steamID] || 0;
     if (!currency || boosterOption.querySelector(".priceoverview")) return;
 
+    // TODO get cached data if exist
+
     const data = await fetchData(
-      `https://steamcommunity.com/market/priceoverview/?&currency=${currency}&appid=753&market_hash_name=${item.market_hash_name}`
+      `https://steamcommunity.com/market/priceoverview/?&currency=${currency}&appid=753&market_hash_name=${encodeURIComponent(item.market_hash_name)}`
     );
     const listing_data = JSON.parse(data);
     if (listing_data?.success) {
