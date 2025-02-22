@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Steam Booster Packs Profit Finder
-// @description  Trade your gems for card sets from your game collection at a good price
+// @description  Find profitable Booster Packs to craft
 // @version      0.1.2
 // @auhor        16ROCK, xob0t
 // @namespace    https://github.com/xob0t/steam_booster_packs_profit_finder
@@ -307,7 +307,6 @@ GM_addStyle(`
       STARTING_AT: "Starting at: ",
       NO_LISTINGS: "There are no listings currently available for this item.",
       SOLD_LAST_24H: "%1$s sold in the last 24 hours",
-      VOLUME: "Volume: ",
       CREATE_SET: "You will be able to create a set",
       NEED_MORE_GEMS: "Need %1$s more gems",
       ITEM_UNMARKETABLE: "This item can no longer be bought or sold on the Community Market.",
@@ -321,8 +320,7 @@ GM_addStyle(`
       VIEW_MARKET: "Найти на Торговой площадке",
       STARTING_AT: "От ",
       NO_LISTINGS: "Сейчас этот предмет никто не продаёт.",
-      SOLD_LAST_24H: "за последние 24 часа: %1$s",
-      VOLUME: "Продано ",
+      SOLD_LAST_24H: "%1$s продано за последние 24 часа",
       CREATE_SET: "Вы сможете создать набор",
       NEED_MORE_GEMS: "Нужно еще %1$s самоцветов",
       ITEM_UNMARKETABLE: "Данный предмет больше нельзя купить или продать на торговой площадке Steam.",
@@ -427,7 +425,7 @@ GM_addStyle(`
       } else {
         priceInfo += `${currentTranslation.NO_LISTINGS}<br>`;
       }
-      priceInfo += `${currentTranslation.VOLUME}${currentTranslation.SOLD_LAST_24H.replace("%1$s", listing_data.volume || 0)}<br>`;
+      priceInfo += `${currentTranslation.SOLD_LAST_24H.replace("%1$s", listing_data.volume || 0)}<br>`;
       boosterOption
         .querySelector(".booster_goo_cost")
         .insertAdjacentHTML("beforebegin", `<div class="priceoverview" style="min-height: 3em; margin-left: 1em;">${priceInfo}</div>`);
@@ -461,9 +459,6 @@ GM_addStyle(`
     item.div.className = "item";
     if (item.unavailable) {
       item.div.classList.add("unavailable");
-      if (item.available_at_time) {
-        item.div.title = `${currentTranslation.VOLUME} ${item.available_at_time}`;
-      }
     }
     item.div.dataset.appid = item.appid;
 
@@ -471,9 +466,6 @@ GM_addStyle(`
       item.not_exist = currentStorage.not_exist[item.appid];
       if (item.not_exist) {
         item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
-        item.div.title = item.available_at_time
-          ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.ITEM_UNMARKETABLE}`
-          : currentTranslation.ITEM_UNMARKETABLE;
       }
     }
 
@@ -485,9 +477,6 @@ GM_addStyle(`
       item.marketable = currentStorage.marketable[item.appid];
       if (!item.marketable) {
         item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
-        item.div.title = item.available_at_time
-          ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.NEED_MORE_GEMS}`
-          : currentTranslation.NEED_MORE_GEMS;
       }
     }
 
@@ -501,11 +490,6 @@ GM_addStyle(`
         item.fastprofit = item.request / item.gems;
         item.div.dataset.price = item.available ? (item.price / 100).toFixed(2) : 0;
         item.div.dataset.request = (item.request / 100).toFixed(2);
-        if (!item.available) {
-          item.div.title = item.available_at_time
-            ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.STARTING_AT}`
-            : currentTranslation.STARTING_AT;
-        }
       }
     }
 
@@ -646,23 +630,7 @@ GM_addStyle(`
       item.price = item.marketable && item.available ? price : 0;
       item.profit = price / item.gems;
       item.div.dataset.price = item.price ? (item.price / 100).toFixed(2) : 0;
-
-      item.div.title = getItemTitle(item);
     });
-  };
-
-  const getItemTitle = (item) => {
-    if (!item.marketable) {
-      return item.available_at_time
-        ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.NEED_MORE_GEMS}`
-        : currentTranslation.NEED_MORE_GEMS;
-    }
-    if (!item.available) {
-      return item.available_at_time
-        ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.STARTING_AT}`
-        : currentTranslation.STARTING_AT;
-    }
-    return "";
   };
 
   const processCurrency = (result) => {
@@ -693,19 +661,12 @@ GM_addStyle(`
 
     if (item) {
       urls[index] = urls[index].replace(`&items[]=${encodeURIComponent(item.market_hash_name)}`, "");
-      resetItem(item);
+      item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
+      setItemColor(item);
       currentStorage.not_exist[appidMatch[0]] = true;
     }
 
     setTimeout(() => multibuy(urls, index), 1000);
-  };
-
-  const resetItem = (item) => {
-    item.div.dataset.price = item.div.dataset.request = item.price = item.request = item.profit = item.fastprofit = 0;
-    item.div.title = item.available_at_time
-      ? `${currentTranslation.VOLUME} ${item.available_at_time}\n${currentTranslation.ITEM_UNMARKETABLE}`
-      : currentTranslation.ITEM_UNMARKETABLE;
-    setItemColor(item);
   };
 
   const enableSorting = () => {
