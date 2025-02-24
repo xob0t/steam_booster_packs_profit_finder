@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Booster Packs Profit Finder
 // @description  Find profitable Booster Packs to craft
-// @version      0.1.3
+// @version      0.1.4
 // @auhor        16ROCK, xob0t
 // @namespace    https://github.com/xob0t/steam_booster_packs_profit_finder
 // @match        https://steamcommunity.com/tradingcards/boostercreator*
