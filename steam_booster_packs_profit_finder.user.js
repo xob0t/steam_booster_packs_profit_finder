@@ -270,29 +270,25 @@ GM_addStyle(`
 (async function () {
   "use strict";
 
-  const version = "0.1";
+  const version = "0.1.1";
   const initialCache = {
     apps: {},
     available: {},
     currencies: {},
-    gems: {},
+    gemsPrice: {},
     not_exist: {},
     marketable: {},
     prices: {},
-    version,
+    version: version,
   };
 
   let cache = await GM_getValue("cache", initialCache);
   if (cache.version !== version) {
-    cache = { ...initialCache, ...cache, version, updatedAt: 0 }; // Migrate cache if version mismatch
+    cache = initialCache;
   }
   let appid = document.querySelector("#booster_game_selector").value;
 
-  const saveCache = async () => {
-    await GM_setValue("cache", cache);
-  };
-
-  // Create a deep copy
+  // Create a deep copy to detach `items` from `sm_rgBoosterData`
   const items = JSON.parse(JSON.stringify(Object.values(unsafeWindow.CBoosterCreatorPage.sm_rgBoosterData)));
 
   let totalItems = 0;
@@ -339,6 +335,10 @@ GM_addStyle(`
 
   const parsePrice = (price) => Math.round(parseFloat(price.replace(/[^0-9,\.]/g, "").replaceAll(",", ".")) * 100);
 
+  const saveCache = async () => {
+    await GM_setValue("cache", cache);
+  };
+
   const decodeHtmlEntities = (str) => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(str, "text/html");
@@ -383,15 +383,6 @@ GM_addStyle(`
     const boosterOption = document.querySelector(".booster_option");
     if (!boosterOption || boosterOption.querySelector("img").src.replace(/[^\d]/g, "") !== appid) return;
 
-    if (item.available_at_time) {
-      boosterOption.querySelector(".booster_option_action span").title = `${currentTranslation.CREATE_SET} ${item.available}`;
-    } else if (item.gems > unsafeWindow.CBoosterCreatorPage.sm_flUserGooAmount) {
-      boosterOption.querySelector(".booster_option_action span").title = currentTranslation.NEED_MORE_GEMS.replace(
-        "%1$s",
-        item.gems - unsafeWindow.CBoosterCreatorPage.sm_flUserGooAmount
-      );
-    }
-
     if (!boosterOption.querySelector(".priceoverview")) {
       if ("marketable" in item && !item.marketable) {
         boosterOption
@@ -422,7 +413,7 @@ GM_addStyle(`
     const currency = cache.currencies[steamID] || 0;
     if (!currency || boosterOption.querySelector(".priceoverview")) return;
 
-    // TODO get cached data if exist
+    // TODO use cached data if avaliable
 
     const data = await fetchData(
       `https://steamcommunity.com/market/priceoverview/?&currency=${currency}&appid=753&market_hash_name=${encodeURIComponent(item.market_hash_name)}`
@@ -444,7 +435,7 @@ GM_addStyle(`
 
   const setItemColor = (item) => {
     const currency = cache.currencies[steamID];
-    const gemPrice = cache.gems[currency].price;
+    const gemPrice = cache.gemsPrice[currency].value;
     const priceClass =
       gemPrice * item.gems < item.price - item.price * 0.13043478260869565 ? "green" : gemPrice * item.gems < item.price ? "orange" : "red";
     const requestClass =
@@ -452,9 +443,8 @@ GM_addStyle(`
     item.div.classList.add(`price_${priceClass}`, `request_${requestClass}`);
   };
 
-  const createItemDiv = (item) => {
+  const createItemElement = (item) => {
     const currency = cache.currencies[steamID] || 0;
-    const date = Date.now();
 
     const key = `${currency}_${item.appid}`;
     appids[item.appid] = item;
@@ -492,8 +482,8 @@ GM_addStyle(`
 
     if (key in cache.prices) {
       const savedPrice = cache.prices[key];
-      item.date = savedPrice.date;
-      if (item.marketable && date - item.date < 1800000) {
+      item.updatedAt = savedPrice.updatedAt;
+      if (item.marketable && Date.now() - item.updatedAt < 1800000) {
         item.price = savedPrice.price || 0;
         item.request = savedPrice.request || 0;
         item.profit = item.price / item.gems;
@@ -519,14 +509,13 @@ GM_addStyle(`
     return item.div;
   };
 
-  const createItemDivs = async () => {
+  const renderItems = async () => {
     if (language === "english" || !items.some((item) => !(item.appid in cache.apps))) {
       const appid = document.querySelector("#booster_game_selector").value;
       const currency = cache.currencies[steamID] || 0;
-      const date = Date.now();
 
       items.forEach((item) => {
-        const itemDiv = createItemDiv(item);
+        const itemDiv = createItemElement(item);
         items.div.append(itemDiv);
       });
 
@@ -540,14 +529,14 @@ GM_addStyle(`
       }
 
       const urls = getMultiUrls();
-      const gems = cache.gems[currency];
+      const gemsPrice = cache.gemsPrice[currency];
 
-      if (currency && gems && date - gems.date < 900000) {
+      if (currency && gemsPrice && Date.now() - gemsPrice.updatedAt < 900000) {
         items.filter((item) => "request" in item).forEach((item) => setItemColor(item));
         totalItems = (urls.length - 1) * 2;
-        await multibuy(urls, 1);
+        await fetchMarketData(urls, 1);
       } else {
-        await multibuy(urls, 0);
+        await fetchMarketData(urls, 0);
       }
     } else {
       const result = await fetchData("https://steamcommunity.com/tradingcards/boostercreator?l=en");
@@ -556,12 +545,12 @@ GM_addStyle(`
           const matches = result.match(/CBoosterCreatorPage\.Init\(\s+([^\n]+)\,/);
           const items = JSON.parse(matches[1]);
           items.forEach((item) => (cache.apps[item.appid] = item.name));
-          await createItemDivs();
+          await renderItems();
         } catch (error) {
-          setTimeout(createItemDivs, 500 * 2);
+          setTimeout(renderItems, 500 * 2);
         }
       } else {
-        setTimeout(createItemDivs, 500 * 2);
+        setTimeout(renderItems, 500 * 2);
       }
     }
   };
@@ -580,7 +569,7 @@ GM_addStyle(`
     return multiUrl;
   };
 
-  const multibuy = async (urls, index) => {
+  const fetchMarketData = async (urls, index) => {
     if (index >= urls.length) {
       setTimeout(enableSorting, 1000);
       return;
@@ -592,7 +581,7 @@ GM_addStyle(`
 
     const result = await fetchData(url);
     if (!result) {
-      setTimeout(() => multibuy(urls, index === 1 && !count ? 0 : index), 1000);
+      setTimeout(() => fetchMarketData(urls, index === 1 && !count ? 0 : index), 1000);
       return;
     }
 
@@ -613,7 +602,7 @@ GM_addStyle(`
         processCurrency(result);
       }
       updateProgress();
-      await multisell(urls, index);
+      await fetchSellData(urls, index);
     } else {
       handleNonexistentItem(result, urls, index);
     }
@@ -646,8 +635,8 @@ GM_addStyle(`
   const processCurrency = (result) => {
     const steamIDCurrency = result.match(/"wallet_currency":(\d*),"/)[1];
     cache.currencies[steamID] = steamIDCurrency;
-    cache.gems[steamIDCurrency] = {
-      price: parsePrice(result.match(/price" value="([^"]*)"/)[1]),
+    cache.gemsPrice[steamIDCurrency] = {
+      value: parsePrice(result.match(/price" value="([^"]*)"/)[1]),
     };
     window.requestAnimationFrame(() => updatePriceOverview(appids[appid]));
   };
@@ -662,7 +651,7 @@ GM_addStyle(`
     const notExist = notExistMatch && notExistMatch[1];
 
     if (!notExist) {
-      setTimeout(() => multibuy(urls, index), 1000);
+      setTimeout(() => fetchMarketData(urls, index), 1000);
       return;
     }
 
@@ -676,7 +665,7 @@ GM_addStyle(`
       cache.not_exist[appidMatch[0]] = true;
     }
 
-    setTimeout(() => multibuy(urls, index), 1000);
+    setTimeout(() => fetchMarketData(urls, index), 1000);
   };
 
   const enableSorting = () => {
@@ -690,20 +679,20 @@ GM_addStyle(`
     });
   };
 
-  const multisell = async (urls, index) => {
+  const fetchSellData = async (urls, index) => {
     const url = index
       ? `https://steamcommunity.com/market/multisell?appid=753&contextid=6${urls[index]}&l=en`
       : `https://steamcommunity.com/login/home/?goto=${encodeURIComponent(`/market/multisell?appid=753&contextid=6${urls[index]}&l=en`)}`;
 
     const result = await fetchData(url);
     if (!result) {
-      setTimeout(() => multisell(urls, index), 1000);
+      setTimeout(() => fetchSellData(urls, index), 1000);
       return;
     }
 
     const multi = result.split(/market_multi_itemname/);
     if (multi.length <= 1) {
-      setTimeout(() => multisell(urls, index), 1000);
+      setTimeout(() => fetchSellData(urls, index), 1000);
       return;
     }
 
@@ -720,26 +709,26 @@ GM_addStyle(`
 
       item.request = item.marketable ? request : 0;
       item.fastprofit = request / item.gems;
-      item.date = date;
+      item.updatedAt = date;
       item.div.dataset.request = item.request ? (request / 100).toFixed(2) : 0;
 
       setItemColor(item);
 
       const key = `${cache.currencies[steamID]}_${appid}`;
-      cache.prices[key] = { price: item.price, request, date };
+      cache.prices[key] = { price: item.price, request, updatedAt: date };
     });
 
     if (!index) {
       const currency = cache.currencies[steamID];
-      cache.gems[currency].price = (cache.gems[currency].price + parsePrice(multi[1].match(/price_paid" value="([^"]*)"/)[1])) / 2000;
-      cache.gems[currency].date = date;
+      cache.gemsPrice[currency].value = (cache.gemsPrice[currency].value + parsePrice(multi[1].match(/price_paid" value="([^"]*)"/)[1])) / 2000;
+      cache.gemsPrice[currency].updatedAt = date;
       items.filter((item) => "request" in item).forEach(setItemColor);
     }
 
     updateProgress();
 
     await saveCache();
-    await multibuy(urls, index + 1);
+    await fetchMarketData(urls, index + 1);
   };
 
   const initializeUI = () => {
@@ -783,6 +772,6 @@ GM_addStyle(`
   };
 
   initializeUI();
-  await createItemDivs();
+  await renderItems();
   await saveCache();
 })();
